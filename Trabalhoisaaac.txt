@@ -1,0 +1,540 @@
+CREATE TABLE Occurrence (
+    id SERIAL PRIMARY KEY,
+    gbifID BIGINT ,
+    accessRights TEXT,
+    license TEXT,
+    rightsHolder TEXT,
+    institutionCode TEXT,
+    collectionCode TEXT,
+    basisOfRecord TEXT,
+    occurrenceID TEXT,
+    catalogNumber TEXT,
+    occurrenceStatus TEXT,
+    datasetKey UUID,
+    publishingCountry TEXT,
+    lastInterpreted TEXT,
+    issue TEXT,
+    hasCoordinate BOOLEAN,
+    hasGeospatialIssues BOOLEAN,
+    protocol TEXT,
+    lastParsed TIMESTAMP,
+    lastCrawled TIMESTAMP,
+    recordedBy TEXT,
+    preparations TEXT,
+    higherGeography TEXT,
+    countryCode TEXT,
+    stateProvince TEXT,
+    locality TEXT,
+    repatriated BOOLEAN,
+    county TEXT,
+    eventDate DATE,
+    year DOUBLE PRECISION,
+    month DOUBLE PRECISION,
+    decimalLatitude DOUBLE PRECISION,
+    decimalLongitude DOUBLE PRECISION,
+    day DOUBLE PRECISION,
+    eventRemarks TEXT,
+    typeStatus TEXT,
+    infraspecificEpithet TEXT
+);
+
+
+CREATE TABLE Kingdom (
+    kingdom_id SERIAL PRIMARY KEY,
+    kingdom TEXT
+);
+
+CREATE TABLE Phylum (
+    phylum_id SERIAL PRIMARY KEY,
+    phylum TEXT
+);
+
+CREATE TABLE Classe (
+    classe_id SERIAL PRIMARY KEY,
+    classe TEXT
+);
+
+CREATE TABLE Ordem (
+    ordem_id SERIAL PRIMARY KEY,
+    ordem TEXT
+);
+
+CREATE TABLE Familia (
+    familia_id SERIAL PRIMARY KEY,
+    familia TEXT
+);
+
+CREATE TABLE Genus (
+    genus_id SERIAL PRIMARY KEY,
+    genus TEXT
+);
+
+CREATE TABLE Taxonomy (
+    id SERIAL PRIMARY KEY,
+    taxonKey INTEGER,
+    kingdom_id INTEGER REFERENCES Kingdom(kingdom_id),
+    scientificName TEXT,
+    iucnRedListCategory TEXT,
+    specificEpithet TEXT,
+    species TEXT
+);
+
+CREATE TABLE OccurrenceTaxonomy (
+    id INTEGER REFERENCES Occurrence(id),
+    taxonid INTEGER REFERENCES Taxonomy(id),
+    PRIMARY KEY (id, taxonid)
+);
+
+import pandas as pd
+
+# Ler o arquivo CSV
+df = pd.read_csv('D:\downloads\goeldi_2.csv', delimiter=';')
+
+# Dividir cada coluna em um arquivo separado
+for coluna in df.columns:
+    df[coluna].to_csv(f'{coluna}.csv', sep=';', index=False, header=True)
+
+
+copy occurrence (accessRights)
+    from 'D:\codes\banco de dados\accessRights.csv' WITH DELIMITER ',' CSV HEADER ;
+
+-- Crie a tabela temporária
+CREATE TEMP TABLE temp_occurrence (id SERIAL, rightsHolder TEXT);
+
+-- Importe os dados do CSV para a tabela temporária
+COPY temp_occurrence(rightsHolder)
+FROM 'D:\codes\banco de dados\rightsHolder.csv' 
+DELIMITER ',' 
+CSV HEADER;
+
+-- Atualize a tabela original com base nos valores da tabela temporária
+UPDATE Occurrence 
+SET rightsHolder = temp_occurrence.rightsHolder
+FROM temp_occurrence
+WHERE Occurrence.id = temp_occurrence.id;
+
+-- Remova a tabela temporária
+DROP TABLE temp_occurrence;
+
+
+substitui verdadeiro e falso
+
+ponto e virgula em alguns dados
+
+UPDATE genus
+SET kingdom_id = (SELECT kingdom_id FROM Kingdom WHERE Kingdom.kingdom_id = genus.genus_id);
+
+SELECT *
+FROM Occurrence
+JOIN OccurrenceTaxonomy ON Occurrence.id = OccurrenceTaxonomy.id
+JOIN Taxonomy ON OccurrenceTaxonomy.taxonid = Taxonomy.id
+JOIN Classe c ON OccurrenceTaxonomy.taxonid = c.kingdom_id
+JOIN genus g ON OccurrenceTaxonomy.taxonid = g.kingdom_id
+JOIN kingdom k ON OccurrenceTaxonomy.taxonid = k.kingdom_id
+JOIN phylum p ON OccurrenceTaxonomy.taxonid = p.kingdom_id
+JOIN ordem o ON OccurrenceTaxonomy.taxonid = o.kingdom_id
+-- Adicione mais JOINs conforme necessário para outras tabelas de características da espécie
+WHERE Occurrence.id = 1; -- Substitua SeuOccurrenceID pelo ID específico da sua espécie
+
+SELECT *
+FROM Occurrence
+JOIN OccurrenceTaxonomy ON Occurrence.id = OccurrenceTaxonomy.id
+JOIN Taxonomy ON OccurrenceTaxonomy.taxonid = Taxonomy.id
+JOIN Familia f ON Taxonomy.id = f.kingdom_id
+WHERE f.familia = 'Glossoscolecidae';
+
+CREATE OR REPLACE VIEW View_Occurrences_By_Genus AS
+SELECT Genus.genus, COUNT(*) as occurrence_count
+FROM Occurrence
+JOIN OccurrenceTaxonomy ON Occurrence.id = OccurrenceTaxonomy.id
+JOIN Taxonomy ON OccurrenceTaxonomy.taxonid = Taxonomy.id
+JOIN Genus ON Taxonomy.id = Genus.kingdom_id
+GROUP BY Genus.genus;
+
+SELECT * FROM View_Occurrences_By_Genus;
+
+CREATE OR REPLACE VIEW View_Occurrences_By_Family AS
+SELECT Familia.familia, COUNT(*) as occurrence_count
+FROM Occurrence
+JOIN OccurrenceTaxonomy ON Occurrence.id = OccurrenceTaxonomy.id
+JOIN Taxonomy ON OccurrenceTaxonomy.taxonid = Taxonomy.id
+JOIN Familia ON Taxonomy.id = Familia.kingdom_id
+GROUP BY Familia.familia;
+
+SELECT * FROM View_Occurrences_By_Family;
+
+CREATE OR REPLACE VIEW View_Occurrences_By_Year AS
+SELECT Occurrence.year, COUNT(*) as occurrence_count
+FROM Occurrence
+GROUP BY Occurrence.year;
+
+SELECT * FROM View_Occurrences_By_Year;
+
+CREATE OR REPLACE VIEW View_Occurrences_With_Full_Taxonomy AS
+SELECT
+    Occurrence.*,
+    k.kingdom,
+    p.phylum,
+    c.classe,
+    O.ordem,
+    f.familia,
+    g.genus,
+    Taxonomy.taxonKey AS taxonomy_taxonKey,
+    Taxonomy.kingdom_id AS taxonomy_kingdom_id,
+    Taxonomy.scientificName AS taxonomy_scientificName,
+    Taxonomy.iucnRedListCategory AS taxonomy_iucnRedListCategory,
+    Taxonomy.specificEpithet AS taxonomy_specificEpithet,
+    Taxonomy.species AS taxonomy_species
+FROM
+    Occurrence
+JOIN OccurrenceTaxonomy ON Occurrence.id = OccurrenceTaxonomy.id
+JOIN Taxonomy ON OccurrenceTaxonomy.taxonid = Taxonomy.id
+JOIN Classe c ON OccurrenceTaxonomy.taxonid = c.kingdom_id
+JOIN genus g ON OccurrenceTaxonomy.taxonid = g.kingdom_id
+JOIN kingdom k ON OccurrenceTaxonomy.taxonid = k.kingdom_id
+JOIN phylum p ON OccurrenceTaxonomy.taxonid = p.kingdom_id
+JOIN ordem o ON OccurrenceTaxonomy.taxonid = o.kingdom_id
+JOIN familia f ON OccurrenceTaxonomy.taxonid = f.kingdom_id;
+
+SELECT * FROM View_Occurrences_With_Full_Taxonomy;
+
+
+-- Tabela de log para a tabela Occurrence
+CREATE TABLE Log_Occurrence (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_ocorrencia INTEGER REFERENCES Occurrence(id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+-- Tabela de log para a tabela Taxonomy
+CREATE TABLE Log_Taxonomy (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_taxonomia INTEGER REFERENCES Taxonomy(id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+-- Tabela de log para a tabela OccurrenceTaxonomy
+CREATE TABLE Log_OccurrenceTaxonomy (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_ocorrencia INTEGER REFERENCES Occurrence(id),
+    taxonid INTEGER REFERENCES Taxonomy(id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+-- Tabela de log para a tabela Kingdom
+CREATE TABLE Log_Kingdom (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_reino INTEGER REFERENCES Kingdom(kingdom_id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+-- Tabela de log para a tabela Phylum
+CREATE TABLE Log_Phylum (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_filum INTEGER REFERENCES Phylum(phylum_id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+-- Tabela de log para a tabela Classe
+CREATE TABLE Log_Classe (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_classe INTEGER REFERENCES Classe(classe_id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+-- Tabela de log para a tabela Ordem
+CREATE TABLE Log_Ordem (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_ordem INTEGER REFERENCES Ordem(ordem_id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+-- Tabela de log para a tabela Familia
+CREATE TABLE Log_Familia (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_familia INTEGER REFERENCES Familia(familia_id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+-- Tabela de log para a tabela Genus
+CREATE TABLE Log_Genus (
+    log_id SERIAL PRIMARY KEY,
+    evento_tipo TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    id_genero INTEGER REFERENCES Genus(genus_id),
+    dados_anteriores JSONB,
+    dados_atualizados JSONB
+);
+
+
+CREATE OR REPLACE FUNCTION log_insert_occurrence()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Occurrence (evento_tipo, timestamp, id_ocorrencia, dados_atualizados)
+    VALUES ('Inserção', NOW(), NEW.id, TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_update_occurrence()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Occurrence (evento_tipo, timestamp, id_ocorrencia, dados_anteriores, dados_atualizados)
+    VALUES ('Atualização', NOW(), OLD.id, TO_JSONB(OLD), TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_delete_occurrence()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o ID de ocorrência existe na tabela Occurrence antes de inserir o registro na tabela de log
+    IF EXISTS (SELECT 1 FROM Occurrence WHERE id = OLD.id) THEN
+        INSERT INTO Log_Occurrence (evento_tipo, timestamp, id_ocorrencia, dados_anteriores)
+        VALUES ('Exclusão', NOW(), OLD.id, TO_JSONB(OLD));
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_insert_taxonomy()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Taxonomy (evento_tipo, timestamp, id_taxonomia, dados_atualizados)
+    VALUES ('Inserção', NOW(), NEW.id, TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_update_taxonomy()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Taxonomy (evento_tipo, timestamp, id_taxonomia, dados_anteriores, dados_atualizados)
+    VALUES ('Atualização', NOW(), OLD.id, TO_JSONB(OLD), TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_delete_taxonomy()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o ID de taxonomia existe na tabela Taxonomy antes de inserir o registro na tabela de log
+    IF EXISTS (SELECT 1 FROM Taxonomy WHERE id = OLD.id) THEN
+        INSERT INTO Log_Taxonomy (evento_tipo, timestamp, id_taxonomia, dados_anteriores)
+        VALUES ('Exclusão', NOW(), OLD.id, TO_JSONB(OLD));
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_insert_kingdom()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Kingdom (evento_tipo, timestamp, id_reino, dados_atualizados)
+    VALUES ('Inserção', NOW(), NEW.kingdom_id, TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_update_kingdom()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Kingdom (evento_tipo, timestamp, id_reino, dados_anteriores, dados_atualizados)
+    VALUES ('Atualização', NOW(), OLD.kingdom_id, TO_JSONB(OLD), TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_delete_kingdom()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o ID de reino existe na tabela Kingdom antes de inserir o registro na tabela de log
+    IF EXISTS (SELECT 1 FROM Kingdom WHERE kingdom_id = OLD.kingdom_id) THEN
+        INSERT INTO Log_Kingdom (evento_tipo, timestamp, id_reino, dados_anteriores)
+        VALUES ('Exclusão', NOW(), OLD.kingdom_id, TO_JSONB(OLD));
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_insert_phylum()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Phylum (evento_tipo, timestamp, id_filum, dados_atualizados)
+    VALUES ('Inserção', NOW(), NEW.phylum_id, TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_update_phylum()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Phylum (evento_tipo, timestamp, id_filum, dados_anteriores, dados_atualizados)
+    VALUES ('Atualização', NOW(), OLD.phylum_id, TO_JSONB(OLD), TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_delete_phylum()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o ID de filum existe na tabela Phylum antes de inserir o registro na tabela de log
+    IF EXISTS (SELECT 1 FROM Phylum WHERE phylum_id = OLD.phylum_id) THEN
+        INSERT INTO Log_Phylum (evento_tipo, timestamp, id_filum, dados_anteriores)
+        VALUES ('Exclusão', NOW(), OLD.phylum_id, TO_JSONB(OLD));
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_insert_classe()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Classe (evento_tipo, timestamp, id_classe, dados_atualizados)
+    VALUES ('Inserção', NOW(), NEW.classe_id, TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_update_classe()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Classe (evento_tipo, timestamp, id_classe, dados_anteriores, dados_atualizados)
+    VALUES ('Atualização', NOW(), OLD.classe_id, TO_JSONB(OLD), TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_delete_classe()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o ID de classe existe na tabela Classe antes de inserir o registro na tabela de log
+    IF EXISTS (SELECT 1 FROM Classe WHERE classe_id = OLD.classe_id) THEN
+        INSERT INTO Log_Classe (evento_tipo, timestamp, id_classe, dados_anteriores)
+        VALUES ('Exclusão', NOW(), OLD.classe_id, TO_JSONB(OLD));
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_insert_ordem()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Ordem (evento_tipo, timestamp, id_ordem, dados_atualizados)
+    VALUES ('Inserção', NOW(), NEW.ordem_id, TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_update_ordem()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Ordem (evento_tipo, timestamp, id_ordem, dados_anteriores, dados_atualizados)
+    VALUES ('Atualização', NOW(), OLD.ordem_id, TO_JSONB(OLD), TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_delete_ordem()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o ID de ordem existe na tabela Ordem antes de inserir o registro na tabela de log
+    IF EXISTS (SELECT 1 FROM Ordem WHERE ordem_id = OLD.ordem_id) THEN
+        INSERT INTO Log_Ordem (evento_tipo, timestamp, id_ordem, dados_anteriores)
+        VALUES ('Exclusão', NOW(), OLD.ordem_id, TO_JSONB(OLD));
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_insert_familia()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Familia (evento_tipo, timestamp, id_familia, dados_atualizados)
+    VALUES ('Inserção', NOW(), NEW.familia_id, TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_update_familia()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Familia (evento_tipo, timestamp, id_familia, dados_anteriores, dados_atualizados)
+    VALUES ('Atualização', NOW(), OLD.familia_id, TO_JSONB(OLD), TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_delete_familia()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o ID de família existe na tabela Familia antes de inserir o registro na tabela de log
+    IF EXISTS (SELECT 1 FROM Familia WHERE familia_id = OLD.familia_id) THEN
+        INSERT INTO Log_Familia (evento_tipo, timestamp, id_familia, dados_anteriores)
+        VALUES ('Exclusão', NOW(), OLD.familia_id, TO_JSONB(OLD));
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_insert_genus()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Genus (evento_tipo, timestamp, id_genero, dados_atualizados)
+    VALUES ('Inserção', NOW(), NEW.genus_id, TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_update_genus()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO Log_Genus (evento_tipo, timestamp, id_genero, dados_anteriores, dados_atualizados)
+    VALUES ('Atualização', NOW(), OLD.genus_id, TO_JSONB(OLD), TO_JSONB(NEW));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION log_delete_genus()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Verifica se o ID de gênero existe na tabela Genus antes de inserir o registro na tabela de log
+    IF EXISTS (SELECT 1 FROM Genus WHERE genus_id = OLD.genus_id) THEN
+        INSERT INTO Log_Genus (evento_tipo, timestamp, id_genero, dados_anteriores)
+        VALUES ('Exclusão', NOW(), OLD.genus_id, TO_JSONB(OLD));
+    END IF;
+
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
